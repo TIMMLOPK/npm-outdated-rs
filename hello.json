@@ -1,0 +1,40 @@
+{
+    "name": "lionceu",
+    "version": "1.4.0",
+    "description": "lionceu",
+    "private": true,
+    "scripts": {
+      "dev": "next dev -H 0.0.0.0",
+      "build": "next build",
+      "start": "next start",
+      "prettier": "prettier --write .",
+      "lint": "next lint",
+      "analyze": "cross-env ANALYZE=true next build"
+    },
+    "author": "Timmy",
+    "license": "MIT",
+    "dependencies": {
+      "@chakra-ui/icons": "^2.0.2",
+      "@chakra-ui/react": "^2.2.1",
+      "@emotion/react": "^11.9.3",
+      "@emotion/styled": "^11.9.3",
+      "@next/bundle-analyzer": "^12.1.5",
+      "cross-env": "^7.0.3",
+      "framer-motion": "^6.3.13",
+      "gray-matter": "^4.0.3",
+      "marked": "^4.0.17",
+      "next": "^12.1.6",
+      "path": "^0.12.7",
+      "react": "^18.2.0",
+      "react-dom": "^18.2.0",
+      "react-howler": "^5.2.0",
+      "react-icons": "^4.4.0",
+      "three": "^0.141.0"
+    },
+    "devDependencies": {
+      "@yushijinhun/three-minifier-webpack": "^0.3.1",
+      "eslint": "^8.18.0",
+      "eslint-config-next": "^12.1.6",
+      "prettier": "^2.6.2"
+    }
+  }
