@@ -1,12 +1,11 @@
 use futures::stream;
 use futures::StreamExt;
-use indicatif::{ProgressBar, ProgressStyle};
 use reqwest::Client;
 use std::io::{stdout, Write};
 use tokio;
 use version_compare::Version;
 
-const CONCURRENT_REQUESTS: usize = 2;
+const CONCURRENT_REQUESTS: usize = 3;
 
 #[tokio::main]
 pub async fn dependencies_version_check(
@@ -26,14 +25,9 @@ pub async fn dependencies_version_check(
             .expect("unknown dependencies")
             .len() as u64;
 
-    let pb = ProgressBar::new(total);
-    pb.set_style(ProgressStyle::default_spinner());
-    pb.set_message("Analyzing dependencies...");
-
     for (key, value) in dependencies.as_object().expect("failed to fetch").iter() {
         let url = format!("https://registry.npmjs.org/{}", key);
         deps_list.push((key.to_string(), value.to_string(), url));
-        pb.set_position(deps_list.len() as u64);
     }
     for (key, value) in dev_dependencies
         .as_object()
@@ -42,7 +36,6 @@ pub async fn dependencies_version_check(
     {
         let url = format!("https://registry.npmjs.org/{}", key);
         deps_list.push((key.to_string(), value.to_string(), url));
-        pb.set_position(deps_list.len() as u64);
     }
 
     let bodies = stream::iter(deps_list)

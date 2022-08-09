@@ -11,8 +11,8 @@ struct Cli {
 
 #[derive(Debug, Deserialize)]
 struct Package {
-    name: String,
-    version: String,
+    name: Option<String>,
+    version: Option<String>,
     dependencies: serde_json::Value,
     #[serde(alias = "devDependencies")]
     dev_dependencies: serde_json::Value,
@@ -20,7 +20,7 @@ struct Package {
 
 fn main() {
     let args = Cli::parse();
-    println!("🪄 App started");
+    println!("🪄 App started\n");
     std::fs::read_to_string("package.json").expect("package.json not found");
     println!("🚀 Found package.json file");
 
@@ -38,8 +38,17 @@ fn read_file() {
 
     let package: Package = serde_json::from_reader(reader).expect("error parsing json");
 
-    println!("Name: {}", package.name);
-    println!("Version: {}", package.version);
+    if package.name.is_some() {
+        println!("📦 Package name: {}", package.name.unwrap());
+    } else {
+        println!("📦 Package name: not found");
+    }
+
+    if package.version.is_some() {
+        println!("Version: {}", package.version.unwrap());
+    } else {
+        println!("\n");
+    } 
 
     println!(
         "Found {} dependencies",
