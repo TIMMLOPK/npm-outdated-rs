@@ -1,12 +1,13 @@
 use clap::Parser;
 use serde::Deserialize;
 use std::io::BufReader;
+use std::fs::File;
 mod ver_check;
 
 #[derive(Parser)]
 #[clap(author, about, version)]
 struct Cli {
-    check_lastest: bool,
+    check_lastest: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -24,7 +25,7 @@ fn main() {
     std::fs::read_to_string("package.json").expect("package.json not found");
     println!("🚀 Found package.json file");
 
-    if args.check_lastest {
+    if args.check_lastest == "true" {
         read_file();
         check_dependencies();
     } else {
@@ -33,7 +34,7 @@ fn main() {
 }
 
 fn read_file() {
-    let file = std::fs::File::open("package.json").expect("file not found");
+    let file = File::open("package.json").expect("package.json not found");
     let reader = BufReader::new(file);
 
     let package: Package = serde_json::from_reader(reader).expect("error parsing json");
