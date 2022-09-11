@@ -3,6 +3,7 @@ use serde::Deserialize;
 use std::fs::File;
 use std::io::BufReader;
 mod ver_check;
+
 #[macro_use] extern crate prettytable;
 #[derive(Parser)]
 #[clap(author, about, version)]
