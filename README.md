@@ -1,8 +1,5 @@
 # npm-outdated-rs
 
-
-## A kidding project
-
 > How to run it
 > make sure you installed rust development environment
 
@@ -12,6 +9,4 @@
 
 ### Check the version :
 
-```cargo run -- true```
-
-*This cli for studying so it is not real*
+```cargo run```
