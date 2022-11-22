@@ -1,7 +1,7 @@
 use clap::Parser;
 use serde::Deserialize;
-use std::fs::File;
 use std::io::BufReader;
+use std::fs::File;
 mod ver_check;
 
 #[macro_use]
@@ -34,6 +34,7 @@ fn main() {
 }
 
 fn read_file(file_path: String) -> Result<(), Box<dyn std::error::Error>> {
+    let start_time = std::time::Instant::now();
     let file = File::open(file_path)?;
     let reader = BufReader::new(file);
     let package: Package = serde_json::from_reader(reader)?;
@@ -44,8 +45,6 @@ fn read_file(file_path: String) -> Result<(), Box<dyn std::error::Error>> {
         .iter()
         .map(|(key, value)| (key.to_string(), value.to_string()))
         .collect::<Vec<_>>();
-    println!("🚀 Found package.json file");
-
     if package.name.is_some() {
         println!("📦 Package name: {}", package.name.unwrap());
     }
@@ -62,7 +61,7 @@ fn read_file(file_path: String) -> Result<(), Box<dyn std::error::Error>> {
         "Found {} devDependencies",
         package.dev_dependencies.as_object().unwrap().len()
     );
-
     ver_check::dependencies_version_check(deps_list).expect("failed to check versions");
+    println!("Time taken: {:?}", start_time.elapsed().as_secs());
     Ok(())
 }
