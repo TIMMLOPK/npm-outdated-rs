@@ -62,6 +62,6 @@ fn read_file(file_path: String) -> Result<(), Box<dyn std::error::Error>> {
         package.dev_dependencies.as_object().unwrap().len()
     );
     ver_check::dependencies_version_check(deps_list).expect("failed to check versions");
-    println!("Time taken: {:?}", start_time.elapsed().as_secs());
+    println!("Time taken: {:?}s", start_time.elapsed().as_secs());
     Ok(())
 }
