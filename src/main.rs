@@ -1,11 +1,12 @@
 use clap::Parser;
 use serde::Deserialize;
-use std::io::BufReader;
 use std::fs::File;
+use std::io::BufReader;
+
 mod ver_check;
 
-#[macro_use]
-extern crate prettytable;
+use ver_check::dependencies_version_check;
+
 #[derive(Parser)]
 #[clap(version = "1.0", author = "Timmy")]
 struct Cli {
@@ -17,9 +18,9 @@ struct Cli {
 struct Package {
     name: Option<String>,
     version: Option<String>,
-    dependencies: serde_json::Value,
+    dependencies: Option<serde_json::Value>,
     #[serde(alias = "devDependencies")]
-    dev_dependencies: serde_json::Value,
+    dev_dependencies: Option<serde_json::Value>,
 }
 const DEFAULT_PATH: &str = "package.json";
 fn main() {
@@ -38,13 +39,13 @@ fn read_file(file_path: String) -> Result<(), Box<dyn std::error::Error>> {
     let file = File::open(file_path)?;
     let reader = BufReader::new(file);
     let package: Package = serde_json::from_reader(reader)?;
-    let deps_list = package
-        .dependencies
-        .as_object()
-        .unwrap()
-        .iter()
-        .map(|(key, value)| (key.to_string(), value.to_string()))
-        .collect::<Vec<_>>();
+    let mut deps_list = Vec::new();
+
+    let deps = package.dependencies.expect("No dependencies found");
+    for (key, value) in deps.as_object().unwrap() {
+        deps_list.push((key.to_string(), value.to_string()));
+    }
+
     if package.name.is_some() {
         println!("📦 Package name: {}", package.name.unwrap());
     }
@@ -55,13 +56,19 @@ fn read_file(file_path: String) -> Result<(), Box<dyn std::error::Error>> {
 
     println!(
         "Found {} dependencies",
-        package.dependencies.as_object().unwrap().len()
+        deps_list.len()
     );
-    println!(
-        "Found {} devDependencies",
-        package.dev_dependencies.as_object().unwrap().len()
-    );
-    ver_check::dependencies_version_check(deps_list).expect("failed to check versions");
-    println!("Time taken: {:?}s", start_time.elapsed().as_secs());
+
+    if package.dev_dependencies.is_some() {
+        println!(
+            "Found {} dev dependencies",
+            package.dev_dependencies.unwrap().as_object().unwrap().len()
+        );
+    }
+    
+    println!("Checking dependencies...");
+    dependencies_version_check(deps_list).expect("failed to check versions");
+    
+    println!("Time taken: {:?}s", start_time.elapsed().as_secs_f32());
     Ok(())
 }

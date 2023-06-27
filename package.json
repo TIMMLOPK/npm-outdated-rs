@@ -30,11 +30,5 @@
       "react-howler": "^5.2.0",
       "react-icons": "^4.4.0",
       "three": "^0.141.0"
-    },
-    "devDependencies": {
-      "@yushijinhun/three-minifier-webpack": "^0.3.1",
-      "eslint": "^8.18.0",
-      "eslint-config-next": "^12.1.6",
-      "prettier": "^2.6.2"
     }
   }
