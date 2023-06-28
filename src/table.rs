@@ -2,20 +2,24 @@ use futures::{stream::iter, StreamExt};
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use owo_colors::OwoColorize;
 use reqwest::Client;
-use tabled::builder::Builder;
+use std::thread::available_parallelism;
+use tabled::{builder::Builder, settings::Style, Table};
 use tokio;
 use version_compare::{Cmp, Version};
 
 const NPM_URL: &str = "https://registry.npmjs.org/";
 
 #[tokio::main]
-pub async fn check_version(
+pub async fn get_report_table(
     deps_list: Vec<(String, String)>,
     m: &MultiProgress,
-) -> Result<String, Box<dyn std::error::Error>> {
+) -> Result<(Table, Vec<String>), Box<dyn std::error::Error>> {
     let mut builder = Builder::default();
     let client = Client::new();
+
     let headers = ["Name", "Current", "Latest", "Status"];
+    builder.set_header(headers);
+
     let pb = m.add(ProgressBar::new(deps_list.len() as u64));
     let spinner_style = ProgressStyle::with_template("{prefix:.bold.dim} {spinner} {wide_msg}")
         .unwrap()
@@ -23,8 +27,9 @@ pub async fn check_version(
     pb.clone().with_style(spinner_style.clone());
     pb.set_prefix(format!("{}", "[3/3]".bold().dimmed()));
 
-    builder.set_header(headers);
+    let mut outdated_deps = Vec::new();
 
+    let max_concurrent = available_parallelism().unwrap().get();
     let stream = iter(deps_list.into_iter().map(|(name, version)| async {
         pb.set_message(format!("Checking {}...", name));
         let latest_version = get_package(&name, &client).await?;
@@ -33,8 +38,7 @@ pub async fn check_version(
         let status = match current_version.compare(&latest_version) {
             Cmp::Lt => "Outdated",
             Cmp::Eq => "Up to date",
-            Cmp::Gt => "Newer than latest",
-            _ => panic!("Unhandled status"),
+            _ => panic!("Unkown status"),
         };
 
         pb.inc(1);
@@ -46,7 +50,7 @@ pub async fn check_version(
             status.to_string(),
         ))
     }))
-    .buffer_unordered(10)
+    .buffer_unordered(max_concurrent)
     .collect::<Vec<_>>();
 
     pb.finish_with_message("waiting...");
@@ -56,14 +60,29 @@ pub async fn check_version(
     for x in stream {
         match x {
             Ok(x) => {
+                match x.3.as_str() {
+                    "Outdated" => {
+                        outdated_deps.push(format!(
+                            "{}{}{} {} {}{}",
+                            x.0.yellow(),
+                            "(".dimmed(),
+                            x.1.dimmed(),
+                            "->".dimmed(),
+                            x.2.dimmed(),
+                            ")".dimmed()
+                        ));
+                    }
+                    _ => {}
+                }
                 builder.push_record(vec![x.0, x.1, x.2, colorized_status(&x.3)]);
             }
             Err(e) => panic!("Error: {}", e),
         }
     }
 
-    let table = builder.build().to_string();
-    Ok(table)
+    let table = builder.build().with(Style::modern()).to_owned();
+
+    Ok((table, outdated_deps))
 }
 
 async fn get_package(name: &str, client: &Client) -> Result<String, Box<dyn std::error::Error>> {

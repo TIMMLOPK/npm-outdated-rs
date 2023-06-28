@@ -17,4 +17,5 @@ dialoguer = "^0.10.4"
 tabled = { version = "*", features = ["color"] }
 owo-colors = "3.5.0"
 indicatif = "0.17.5"
+regex = "1.8.4"
 

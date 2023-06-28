@@ -1,43 +1,35 @@
 use clap::Parser;
 use indicatif::{HumanDuration, MultiProgress};
 use owo_colors::OwoColorize;
-use serde::Deserialize;
-use std::fs::File;
-use std::io::BufReader;
+use std::error::Error;
 
-mod checker;
+mod file;
+mod select_menu;
+mod table;
 mod utils;
 
-use checker::check_version;
+use crate::file::{read_package_from_file, update_package_dependencies_version};
+use select_menu::select_menu;
+use table::get_report_table;
 
 #[derive(Parser)]
 #[clap(version = "1.0", author = "Timmy")]
 struct Cli {
     #[clap(short, long)]
     path: Option<String>,
+    unstable_update_file: Option<bool>,
 }
 
-#[derive(Debug, Deserialize)]
-struct Package {
-    name: Option<String>,
-    version: Option<String>,
-    dependencies: Option<serde_json::Value>,
-    #[serde(alias = "devDependencies")]
-    dev_dependencies: Option<serde_json::Value>,
-}
 const DEFAULT_PATH: &str = "package.json";
 fn main() {
     let args = Cli::parse();
-    let mut file_path = String::new();
-    if file_path.is_empty() {
-        file_path = DEFAULT_PATH.to_string();
-    } else {
-        file_path = args.path.unwrap();
-    }
-    read_file(file_path).expect("Error reading file");
+    let file_path = args.path.unwrap_or(DEFAULT_PATH.to_string());
+    let unstable_update_file = args.unstable_update_file.unwrap_or(false);
+
+    execute(file_path, unstable_update_file).unwrap();
 }
 
-fn read_file(file_path: String) -> Result<(), Box<dyn std::error::Error>> {
+fn execute(file_path: String, unstable_update_file: bool) -> Result<(), Box<dyn Error>> {
     let start_time = std::time::Instant::now();
     let binding = std::env::current_dir()?;
     let root_name = binding.file_name().unwrap().to_str().unwrap();
@@ -49,23 +41,21 @@ fn read_file(file_path: String) -> Result<(), Box<dyn std::error::Error>> {
         root_name.blue().bold()
     );
 
-    let file = File::open(&file_path)?;
-    let reader = BufReader::new(file);
-    let package: Package = serde_json::from_reader(reader)?;
+    let package = read_package_from_file(file_path)?;
     let mut deps_list = Vec::new();
 
-    let deps = package.dependencies.unwrap();
+    let deps = &package.dependencies.as_ref().unwrap();
 
     for (key, value) in deps.as_object().unwrap() {
         deps_list.push((key.to_string(), value.to_string()));
     }
 
     if package.name.is_some() {
-        println!("Package name: {}", package.name.unwrap());
+        println!("Package name: {}", &package.name.as_ref().unwrap());
     }
 
     if package.version.is_some() {
-        println!("Version: {}", package.version.unwrap());
+        println!("Version: {}", &package.version.as_ref().unwrap());
     }
 
     if deps_list.len() > 0 {
@@ -73,10 +63,7 @@ fn read_file(file_path: String) -> Result<(), Box<dyn std::error::Error>> {
     }
 
     if package.dev_dependencies.is_some() {
-        println!(
-            "Found {} dev dependencies",
-            package.dev_dependencies.unwrap().as_object().unwrap().len()
-        );
+        println!("Found {} dev dependencies", deps.as_object().unwrap().len());
     }
 
     println!(
@@ -87,9 +74,21 @@ fn read_file(file_path: String) -> Result<(), Box<dyn std::error::Error>> {
 
     let m = MultiProgress::new();
 
-    let result_table = check_version(deps_list, &m)?;
+    let result_table = get_report_table(deps_list, &m)?;
 
     println!("{} Done in {}", "✅", HumanDuration(start_time.elapsed()));
-    println!("{}", result_table);
+    println!("{}", result_table.0.to_string());
+
+    if unstable_update_file {
+        let options = result_table.1;
+        let options_ref: &[&str] = &options.iter().map(|s| s.as_str()).collect::<Vec<&str>>();
+        let selected = select_menu(options_ref)
+            .into_iter()
+            .map(|s| options_ref[s])
+            .collect::<Vec<&str>>();
+
+        update_package_dependencies_version(package, selected)?;
+    }
+
     Ok(())
 }
