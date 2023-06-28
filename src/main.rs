@@ -1,11 +1,14 @@
 use clap::Parser;
+use indicatif::{HumanDuration, MultiProgress};
+use owo_colors::OwoColorize;
 use serde::Deserialize;
 use std::fs::File;
 use std::io::BufReader;
 
-mod ver_check;
+mod checker;
+mod utils;
 
-use ver_check::dependencies_version_check;
+use checker::check_version;
 
 #[derive(Parser)]
 #[clap(version = "1.0", author = "Timmy")]
@@ -36,28 +39,38 @@ fn main() {
 
 fn read_file(file_path: String) -> Result<(), Box<dyn std::error::Error>> {
     let start_time = std::time::Instant::now();
-    let file = File::open(file_path)?;
+    let binding = std::env::current_dir()?;
+    let root_name = binding.file_name().unwrap().to_str().unwrap();
+
+    println!(
+        "{} {} Resolving package.json in {}",
+        "[1/3]".bold().dimmed(),
+        "📦",
+        root_name.blue().bold()
+    );
+
+    let file = File::open(&file_path)?;
     let reader = BufReader::new(file);
     let package: Package = serde_json::from_reader(reader)?;
     let mut deps_list = Vec::new();
 
-    let deps = package.dependencies.expect("No dependencies found");
+    let deps = package.dependencies.unwrap();
+
     for (key, value) in deps.as_object().unwrap() {
         deps_list.push((key.to_string(), value.to_string()));
     }
 
     if package.name.is_some() {
-        println!("📦 Package name: {}", package.name.unwrap());
+        println!("Package name: {}", package.name.unwrap());
     }
 
     if package.version.is_some() {
         println!("Version: {}", package.version.unwrap());
     }
 
-    println!(
-        "Found {} dependencies",
-        deps_list.len()
-    );
+    if deps_list.len() > 0 {
+        println!("Found {} dependencies", deps_list.len());
+    }
 
     if package.dev_dependencies.is_some() {
         println!(
@@ -65,10 +78,18 @@ fn read_file(file_path: String) -> Result<(), Box<dyn std::error::Error>> {
             package.dev_dependencies.unwrap().as_object().unwrap().len()
         );
     }
-    
-    println!("Checking dependencies...");
-    dependencies_version_check(deps_list).expect("failed to check versions");
-    
-    println!("Time taken: {:?}s", start_time.elapsed().as_secs_f32());
+
+    println!(
+        "{} {}Fetching latest versions...",
+        "[2/3]".bold().dimmed(),
+        "🔍"
+    );
+
+    let m = MultiProgress::new();
+
+    let result_table = check_version(deps_list, &m)?;
+
+    println!("{} Done in {}", "✅", HumanDuration(start_time.elapsed()));
+    println!("{}", result_table);
     Ok(())
 }
