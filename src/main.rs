@@ -67,7 +67,7 @@ fn execute(file_path: String, unstable_update_file: bool) -> Result<(), Box<dyn 
     }
 
     println!(
-        "{} {}Fetching latest versions...",
+        "{} {} Fetching latest versions...",
         "[2/3]".bold().dimmed(),
         "🔍"
     );
