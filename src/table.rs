@@ -1,10 +1,10 @@
 use futures::{stream::iter, StreamExt};
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use owo_colors::OwoColorize;
-use reqwest::Client;
-use std::thread::available_parallelism;
+use reqwest::{Client, StatusCode};
+use std::sync::Arc;
 use tabled::{builder::Builder, settings::Style, Table};
-use tokio;
+use tokio::sync::Semaphore;
 use version_compare::{Cmp, Version};
 
 const NPM_URL: &str = "https://registry.npmjs.org/";
@@ -16,7 +16,6 @@ pub async fn get_report_table(
 ) -> Result<(Table, Vec<String>), Box<dyn std::error::Error>> {
     let mut builder = Builder::default();
     let client = Client::new();
-
     let headers = ["Name", "Current", "Latest", "Status"];
     builder.set_header(headers);
 
@@ -29,19 +28,23 @@ pub async fn get_report_table(
 
     let mut outdated_deps = Vec::new();
 
-    let max_concurrent = available_parallelism().unwrap().get();
+    let max_concurrent = num_cpus::get();
+    let sem = Arc::new(Semaphore::new(max_concurrent));
     let stream = iter(deps_list.into_iter().map(|(name, version)| async {
         pb.set_message(format!("Checking {}...", name));
+        let permit = sem.acquire().await.unwrap();
         let latest_version = get_package(&name, &client).await?;
         let current_version = Version::from(&version).unwrap();
         let latest_version = Version::from(&latest_version).unwrap();
         let status = match current_version.compare(&latest_version) {
             Cmp::Lt => "Outdated",
             Cmp::Eq => "Up to date",
-            _ => panic!("Unkown status"),
+            _ => panic!("Unknown status"),
         };
 
         pb.inc(1);
+
+        drop(permit);
 
         Ok::<_, Box<dyn std::error::Error>>((
             name,
@@ -76,7 +79,15 @@ pub async fn get_report_table(
                 }
                 builder.push_record(vec![x.0, x.1, x.2, colorized_status(&x.3)]);
             }
-            Err(e) => panic!("Error: {}", e),
+            Err(e) => {
+                if e.downcast_ref::<reqwest::Error>()
+                    .map_or(false, |e| e.status() == Some(StatusCode::NOT_FOUND))
+                {
+                    pb.inc(1);
+                    continue;
+                }
+                panic!("Error: {}", e);
+            }
         }
     }
 

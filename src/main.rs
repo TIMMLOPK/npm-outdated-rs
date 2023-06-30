@@ -41,7 +41,7 @@ fn execute(file_path: String, unstable_update_file: bool) -> Result<(), Box<dyn 
         root_name.blue().bold()
     );
 
-    let package = read_package_from_file(file_path)?;
+    let mut package = read_package_from_file(file_path)?;
     let mut deps_list = Vec::new();
 
     let deps = &package.dependencies.as_ref().unwrap();
@@ -79,6 +79,11 @@ fn execute(file_path: String, unstable_update_file: bool) -> Result<(), Box<dyn 
     println!("{} Done in {}", "✅", HumanDuration(start_time.elapsed()));
     println!("{}", result_table.0.to_string());
 
+    if result_table.1.len() == 0 && unstable_update_file {
+        println!("{} No dependencies to update", "✅".green());
+        return Ok(());
+    }
+
     if unstable_update_file {
         let options = result_table.1;
         let options_ref: &[&str] = &options.iter().map(|s| s.as_str()).collect::<Vec<&str>>();
@@ -87,7 +92,7 @@ fn execute(file_path: String, unstable_update_file: bool) -> Result<(), Box<dyn 
             .map(|s| options_ref[s])
             .collect::<Vec<&str>>();
 
-        update_package_dependencies_version(package, selected)?;
+        update_package_dependencies_version(&mut package, selected)?;
     }
 
     Ok(())

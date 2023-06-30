@@ -38,49 +38,40 @@ pub fn read_package_from_file<P: AsRef<Path>>(path: P) -> Result<PackageJson, Bo
     Ok(package)
 }
 
-fn write_package_to_file<P: AsRef<Path>, V: ?Sized>(
+fn write_package_to_file<P: AsRef<Path>, V: Serialize>(
     path: P,
-    package: PackageJson,
+    package: V,
 ) -> Result<(), Box<dyn Error>> {
     let file = File::create(path)?;
     let writer = BufWriter::new(file);
-    serde_json::to_writer(writer, &package)?;
+    serde_json::to_writer_pretty(writer, &package)?;
     Ok(())
 }
 
 pub fn update_package_dependencies_version(
-    package: PackageJson,
+    package: &mut PackageJson,
     dependencies: Vec<&str>,
 ) -> Result<(), Box<dyn Error>> {
-    let mut deps = package.dependencies.unwrap();
+    let mut deps = package.dependencies.as_ref().unwrap().clone();
     for dep in dependencies {
         let dep = strip_ansi(dep);
         let name = dep.split("(").next();
         let old_version = dep.split("(").last().unwrap().split("->").next().unwrap();
         let old_version = old_version.replace("\"", "");
         let latest_version = dep.split("->").last().unwrap().replace(")", "");
-        let prefix = if old_version.starts_with("^") {
-            "^"
-        } else if old_version.starts_with("~") {
-            "~"
-        } else {
-            ""
+        let prefix = match old_version.chars().next() {
+            Some('^') => "^",
+            Some('~') => "~",
+            _ => "",
         };
-        let new_version = format!("{}{}", prefix, latest_version);
+        let new_version = format!("{}{}", prefix, latest_version.trim());
 
         deps[&name.unwrap()] = serde_json::Value::String(new_version);
     }
 
-    let package = PackageJson {
-        name: package.name,
-        version: package.version,
-        description: package.description,
-        private: package.private,
-        scripts: package.scripts,
-        other: package.other,
-        dependencies: Some(deps),
-        dev_dependencies: package.dev_dependencies,
-    };
-    write_package_to_file::<_, PackageJson>("package.json", package)?;
+    package.dependencies = Some(deps);
+
+    write_package_to_file("package.json", package)?;
+    
     Ok(())
 }
