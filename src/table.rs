@@ -3,7 +3,7 @@ use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use owo_colors::OwoColorize;
 use reqwest::{Client, StatusCode};
 use std::sync::Arc;
-use tabled::{builder::Builder, settings::Style, Table};
+use tabled::{builder::Builder, settings::Style};
 use tokio::sync::Semaphore;
 use version_compare::{Cmp, Version};
 
@@ -11,9 +11,9 @@ const NPM_URL: &str = "https://registry.npmjs.org/";
 
 #[tokio::main]
 pub async fn get_report_table(
-    deps_list: Vec<(String, String)>,
+    deps_list: &Vec<(String, String, String)>,
     m: &MultiProgress,
-) -> Result<(Table, Vec<String>), Box<dyn std::error::Error>> {
+) -> Result<(String, Vec<String>), Box<dyn std::error::Error>> {
     let mut builder = Builder::default();
     let client = Client::new();
     let headers = ["Name", "Current", "Latest", "Status"];
@@ -30,29 +30,34 @@ pub async fn get_report_table(
 
     let max_concurrent = num_cpus::get();
     let sem = Arc::new(Semaphore::new(max_concurrent));
-    let stream = iter(deps_list.into_iter().map(|(name, version)| async {
-        pb.set_message(format!("Checking {}...", name));
-        let permit = sem.acquire().await.unwrap();
-        let latest_version = get_package(&name, &client).await?;
-        let current_version = Version::from(&version).unwrap();
-        let latest_version = Version::from(&latest_version).unwrap();
-        let status = match current_version.compare(&latest_version) {
-            Cmp::Lt => "Outdated",
-            Cmp::Eq => "Up to date",
-            _ => panic!("Unknown status"),
-        };
+    let stream = iter(
+        deps_list
+            .clone()
+            .into_iter()
+            .map(|(name, version, _)| async {
+                pb.set_message(format!("Checking {}...", name));
+                let permit = sem.acquire().await.unwrap();
+                let latest_version = get_package(&name, &client).await?;
+                let current_version = Version::from(&version).unwrap();
+                let latest_version = Version::from(&latest_version).unwrap();
+                let status = match current_version.compare(&latest_version) {
+                    Cmp::Lt => "Outdated",
+                    Cmp::Eq => "Up to date",
+                    _ => panic!("Unknown status"),
+                };
 
-        pb.inc(1);
+                pb.inc(1);
 
-        drop(permit);
+                drop(permit);
 
-        Ok::<_, Box<dyn std::error::Error>>((
-            name,
-            version,
-            latest_version.to_string(),
-            status.to_string(),
-        ))
-    }))
+                Ok::<_, Box<dyn std::error::Error>>((
+                    name,
+                    version,
+                    latest_version.to_string(),
+                    status.to_string(),
+                ))
+            }),
+    )
     .buffer_unordered(max_concurrent)
     .collect::<Vec<_>>();
 
@@ -91,7 +96,7 @@ pub async fn get_report_table(
         }
     }
 
-    let table = builder.build().with(Style::modern()).to_owned();
+    let table = builder.build().with(Style::modern()).to_string();
 
     Ok((table, outdated_deps))
 }

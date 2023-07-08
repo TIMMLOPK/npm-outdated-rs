@@ -44,26 +44,55 @@ fn execute(file_path: String, unstable_update_file: bool) -> Result<(), Box<dyn 
     let mut package = read_package_from_file(file_path)?;
     let mut deps_list = Vec::new();
 
-    let deps = &package.dependencies.as_ref().unwrap();
+    let deps = &package.dependencies.as_ref();
+    let dev_deps = &package.dev_dependencies.as_ref();
 
-    for (key, value) in deps.as_object().unwrap() {
-        deps_list.push((key.to_string(), value.to_string()));
+    if let Some(deps) = deps {
+        for (name, version) in deps.as_object().unwrap() {
+            deps_list.push((
+                name.to_string(),
+                version.to_string(),
+                "dependencies".to_string(),
+            ));
+        }
     }
 
-    if package.name.is_some() {
-        println!("Package name: {}", &package.name.as_ref().unwrap());
+    if let Some(dev_deps) = dev_deps {
+        for (name, version) in dev_deps.as_object().unwrap() {
+            deps_list.push((
+                name.to_string(),
+                version.to_string(),
+                "devDependencies".to_string(),
+            ));
+        }
     }
 
-    if package.version.is_some() {
-        println!("Version: {}", &package.version.as_ref().unwrap());
+    if let Some(name) = &package.name {
+        println!("Package name: {}", name);
+    }
+
+    if let Some(version) = &package.version {
+        println!("Version: {}", version);
     }
 
     if deps_list.len() > 0 {
         println!("Found {} dependencies", deps_list.len());
+    } else {
+        println!("No dependencies found");
     }
 
-    if package.dev_dependencies.is_some() {
-        println!("Found {} dev dependencies", deps.as_object().unwrap().len());
+    if let Some(dev_dependencies) = &package.dev_dependencies {
+        println!(
+            "Found {} dev dependencies",
+            dev_dependencies.as_object().unwrap().len()
+        );
+    } else {
+        println!("No dev dependencies found");
+    }
+
+    if deps_list.len() == 0 {
+        println!("No dependencies to update");
+        return Ok(());
     }
 
     println!(
@@ -74,13 +103,13 @@ fn execute(file_path: String, unstable_update_file: bool) -> Result<(), Box<dyn 
 
     let m = MultiProgress::new();
 
-    let result_table = get_report_table(deps_list, &m)?;
+    let result_table = get_report_table(&deps_list, &m)?;
 
     println!("{} Done in {}", "✅", HumanDuration(start_time.elapsed()));
-    println!("{}", result_table.0.to_string());
+    println!("{}", result_table.0);
 
     if result_table.1.len() == 0 && unstable_update_file {
-        println!("{} No dependencies to update", "✅".green());
+        println!("No dependencies to update");
         return Ok(());
     }
 

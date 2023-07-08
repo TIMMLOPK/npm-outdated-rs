@@ -53,9 +53,10 @@ pub fn update_package_dependencies_version(
     dependencies: Vec<&str>,
 ) -> Result<(), Box<dyn Error>> {
     let mut deps = package.dependencies.as_ref().unwrap().clone();
+    let mut dev_deps = package.dev_dependencies.as_ref().unwrap().clone();
     for dep in dependencies {
         let dep = strip_ansi(dep);
-        let name = dep.split("(").next();
+        let name = dep.split("(").next().expect("Invalid dependency name");
         let old_version = dep.split("(").last().unwrap().split("->").next().unwrap();
         let old_version = old_version.replace("\"", "");
         let latest_version = dep.split("->").last().unwrap().replace(")", "");
@@ -66,10 +67,15 @@ pub fn update_package_dependencies_version(
         };
         let new_version = format!("{}{}", prefix, latest_version.trim());
 
-        deps[&name.unwrap()] = serde_json::Value::String(new_version);
+        if deps.get(&name).is_some() {
+            deps[&name] = serde_json::Value::String(new_version);
+        } else if dev_deps.get(&name).is_some() {
+            dev_deps[&name] = serde_json::Value::String(new_version);
+        }
     }
 
     package.dependencies = Some(deps);
+    package.dev_dependencies = Some(dev_deps);
 
     write_package_to_file("package.json", package)?;
     
