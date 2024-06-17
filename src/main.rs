@@ -1,11 +1,14 @@
 use clap::Parser;
+use dependency::Dependency;
 use file::PackageJson;
 use indicatif::MultiProgress;
 use owo_colors::OwoColorize;
 use select_menu::SelectMenu;
 use std::error::Error;
 use table::get_report_table;
+use utils::colorize_number;
 
+mod dependency;
 mod file;
 mod select_menu;
 mod table;
@@ -62,43 +65,31 @@ impl Executor {
         );
 
         let mut package = PackageJson::read_from_file(&self.file_path)?;
-        let mut deps_list = Vec::new();
 
-        let deps = &package.dependencies.as_ref();
-        let dev_deps = &package.dev_dependencies.as_ref();
+        let deps = &package.dependencies;
+        let dev_deps = &package.dev_dependencies;
+        let mut deps_list = Vec::new();
 
         if let Some(deps) = deps {
             for (name, version) in deps.as_object().expect("Cannot get dependencies") {
-                deps_list.push((
-                    name.to_string(),
-                    version.to_string(),
-                    "dependencies".to_string(),
-                ));
+                let dep = Dependency::new(name.to_string(), version.to_string());
+                deps_list.push(dep);
             }
         }
 
         if let Some(dev_deps) = dev_deps {
             for (name, version) in dev_deps.as_object().expect("Cannot get dev dependencies") {
-                deps_list.push((
-                    name.to_string(),
-                    version.to_string(),
-                    "devDependencies".to_string(),
-                ));
+                let dep = Dependency::new(name.to_string(), version.to_string());
+                deps_list.push(dep);
             }
         }
 
-        let package_name = package.name.as_ref();
-
-        if deps_list.len() > 0 {
-            println!(
-                "Found {} dependencies in {}",
-                utils::colorize_number(&deps_list.len()),
-                package_name.unwrap_or(&"".to_string())
-            );
-        } else {
+        if deps_list.len() == 0 {
             println!("No dependencies found");
             return Ok(());
         }
+
+        println!("Found {} dependencies", colorize_number(&deps_list.len()));
 
         println!(
             "{} {} Fetching latest versions...",
@@ -108,9 +99,9 @@ impl Executor {
 
         let m = MultiProgress::new();
 
-        let report_table = get_report_table(&deps_list, &m)?;
+        let report_table = get_report_table(deps_list, &m);
 
-        println!("{}", report_table.0);
+        println!("{}", report_table.table);
 
         println!(
             "{} Done in {}",
@@ -118,13 +109,13 @@ impl Executor {
             utils::colorize_time(&start_time.elapsed()),
         );
 
-        if report_table.1.len() == 0 && self.update_file {
+        if report_table.outdated_deps.len() == 0 && self.update_file {
             println!("No dependencies to update");
             return Ok(());
         }
 
         if self.update_file {
-            let options = report_table.1;
+            let options = report_table.outdated_deps;
             let options_ref: &[&str] = &options.iter().map(|s| s.as_str()).collect::<Vec<&str>>();
             let selected = SelectMenu::new(options_ref, "Select dependencies to update")
                 .interact()
