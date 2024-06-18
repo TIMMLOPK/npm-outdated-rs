@@ -105,7 +105,7 @@ impl Executor {
 
         println!(
             "{} Done in {}",
-            "✅".green().bold(),
+            "✅",
             utils::colorize_time(&start_time.elapsed()),
         );
 
