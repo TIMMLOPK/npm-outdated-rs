@@ -22,6 +22,8 @@ struct Cli {
     update_file: Option<bool>,
 }
 
+// binary.exe --path package.json --update-file
+
 const DEFAULT_PATH: &str = "package.json";
 
 struct Executor {
